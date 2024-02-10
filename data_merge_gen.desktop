@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=data_merge_gen
+X-Python-2-Compatible=false
+X-Krita-Manual=Manual.html
+Name=DataMergeGenerator
+Comment=A plugin that data merge with a CSV file and a Template kra file.
