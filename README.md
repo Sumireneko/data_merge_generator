@@ -1,4 +1,4 @@
-# Data Merge Generator v1.54 for Krita 
+# Data Merge Generator v1.6 for Krita 
 
 This plugin working simple version of Data Merge.
 Require Krita v5.2.2 later
@@ -54,5 +54,18 @@ See also [this article](https://docs.krita.org/en/user_manual/python_scripting/i
 3. Setting (Optional)
 4. Select the CSV file
 
+## Place algorithms (v1.6)
+In each mode, prefix added to GroupLayer's name,For example "E:New0","M:New2" and the TransformMasks for fix positon. 
+These prefix M,E means Moveable and Editable.The number mean index.
+* Moveable  : Add Transform to GroupLayer(Template). So all editable positions are shift by TransformMask.(Default)
+* Editable  : Add Transform to TransformMask, So normal layers editable position match. 
 
+## Group renamer by tag (v1.6)
+If it chcked and the specified tag name matched,that text will be exported as the grouplayer's name from csv data.
+For example "E:3 CardTitleString", M:6 person_name,The number mean index.
+If not match the tag and data, use default name "New" use to.
+
+## Version history
+* v1.6 : Support two place algorithms that Moveable and Editable, Add GroupLayerRenamer
+* v1.5.4 : fist release, Place to multiple kra file by page
 
