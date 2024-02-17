@@ -11,7 +11,7 @@ Also,this plugin inspired from the script "[Improved version of Data Join](http:
 )"  for Adobe Illustrator.Thank you very much.
 
 ## Ussage
-See [Usage Manual](https://sumireneko.github.io/data_merge/data_merge_gen/Manual.html)
+See [Usage Manual](https://sumireneko.github.io/data_merge_generator/data_merge_gen/Manual.html)
 
 ### Note and Disclaimer
 * This plugin is experimental. It is not suitable for large amounts of data.
