@@ -17,16 +17,22 @@ umax = 0 # Layout per page
 docx = 2480
 docy = 3508
 
-padx = 108
+padx = 59
 pady = 59
 
 # Distination pos (unit:px)
-dx = 100
-dy = 100
+dx = 59
+dy = 59
 
 
 # tag
 lt = '&lt;&lt;'
 gt = '&gt;&gt;'
+
+
+# place algorithm mode 
+mode = 0
+
+rename_tag = 'TITLE'
 
 dummyfile = 'dummy.png'

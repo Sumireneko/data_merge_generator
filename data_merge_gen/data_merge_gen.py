@@ -1,5 +1,5 @@
 # ===============================================
-# Data Merge Generator v1.54 for Krita 
+# Data Merge Generator v1.6 for Krita 
 # ===============================================
 # Copyright (C) 2024 L.Sumireneko.M
 # This program is free software: you can redistribute it and/or modify it under the 
@@ -17,7 +17,7 @@
 
 # This script is work SIMPLE data combine similar as ..Data-Merge,MailMerge
 from krita import *
-from PyQt5.QtWidgets import QDialog,QHBoxLayout,QVBoxLayout,QPushButton,QLabel,QLineEdit,QFileDialog,QComboBox,QMessageBox
+from PyQt5.QtWidgets import QDialog,QHBoxLayout,QVBoxLayout,QPushButton,QLabel,QLineEdit,QFileDialog,QComboBox,QMessageBox,QRadioButton,QButtonGroup,QFrame
 from PyQt5.QtCore import *
 from PyQt5.QtGui import QGuiApplication,QClipboard
 import re,os,time
@@ -27,6 +27,7 @@ import re,os,time
 # ========================
 from .setting import *
 
+dialog_title_txt = "Data Merge Generator v1.6"
 
 # ========================
 # GUI Settings
@@ -82,8 +83,22 @@ pmenu=[
     ['XGA - ( W1024 x H768 px)', '1024', '768'],
     ['2K - ( W1920 x H1080 px)', '1920', '1080']
 ]
-label11= QLabel("Placements per page (0=ALL)")
+label11 = QLabel("Placements per page (0=ALL)")
 texbox11 = QLineEdit(str(umax))
+
+label12 = QLabel("Place algorithm for")
+
+rg = QButtonGroup()
+rad1 = QRadioButton("Moveable")
+rad2 = QRadioButton("Editable")
+rad1.setChecked(True)
+
+mode = 0 # place algorithm
+rg.addButton(rad1, 0)
+rg.addButton(rad2, 1)
+
+chkbox2 = QCheckBox("Group renamer by the tag")
+texbox12 = QLineEdit(str(rename_tag))
 
 newDialog = QDialog()
 
@@ -182,9 +197,15 @@ def get_param(txt):
     #print("Calculated:"+str(num))
     return num
 
+def get_txt_param(txt):
+    #print("Param:"+str(txt))
+    if txt == '':txt=' '
+    txt = re.sub(r'(\.|\*|\\|\'|\"|\{|\}|:|\||;)','',txt) 
+    return txt
+
 
 def opendialog():
-    global docx,docy,padx,pady,dx,dy,maxcol,umax
+    global docx,docy,padx,pady,dx,dy,maxcol,umax,mode,rename_tag,dialog_title_txt
     print('Button clicked!!')
     docx = get_param(texbox1.text())
     docy = get_param(texbox2.text())
@@ -194,6 +215,9 @@ def opendialog():
     dy = get_param(texbox6.text())
     maxcol = get_param(texbox7.text())
     umax = get_param(texbox11.text())
+    mode = rg.checkedId()# return 0 or 1 from radiobtngroup
+    rename_tag= get_txt_param(texbox12.text())
+
     
     print("---- Read Parameters ----")
     file = QFileDialog.getOpenFileName(None,'Open CSV File',os.path.expanduser('~' + '/Desktop'), filter = 'CSV or TXT (*.csv *.txt)')
@@ -249,7 +273,7 @@ def opendialog():
 
 # Main loop
 def regloop(list,res,st):
-    global docx,docy,padx,pady,dx,dy,maxcol,umax
+    global docx,docy,padx,pady,dx,dy,maxcol,umax,mode,rename_tag
     
     document_name = 'NewDocument'
     pdx,idx = 0,0
@@ -275,8 +299,23 @@ def regloop(list,res,st):
     b=temp_origin_layer.bounds()
     w,h = b.width(),b.height()
     
+    
     row,col = 0,0
     up_max = umax
+    
+    # For grouplayer renamer mode
+    rename_idx = -1
+    if QtCore.Qt.Checked == chkbox2.checkState():
+        for i, v in enumerate(tags):
+            if v == rename_tag:
+                rename_idx = i
+                continue
+    
+    # For grouplayer name prefix
+    mode_name = ["M:","E:"]
+    prefix = mode_name[mode]
+    
+    # The loop begin
     for itm in list:
     
         if up_max > 0 and idx > 0 and idx % up_max == 0:
@@ -296,7 +335,14 @@ def regloop(list,res,st):
         prts = itm.split(splitter) # splitter in data file
 
         # Copy template Layer and duplicate it
-        newname = f'New{idx}'
+        
+        newname = f'{prefix}New{idx}'
+        
+        # If grouplayer renamer is enable
+        if QtCore.Qt.Checked == chkbox2.checkState() and rename_idx != -1 :
+            name = get_txt_param(prts[rename_idx])
+            newname = f'{prefix}{idx}_{name}'
+
         
         # if idx > 2: continue # debug for revert
         got_activeLayer = temp_origin_layer.duplicate()
@@ -364,9 +410,18 @@ def regloop(list,res,st):
         tim_info('Remove text_layers:',st)
         # Position set
         tx,ty = dx+(col*(w+padx)), dy+(row*(h+pady))
-        new_layout = krita_inscance_activedoc_createTransformMask(f'Layout{idx}')
-        new_layout.fromXML(transform_exe(tx,ty))
-        got_activeLayer_addChildNode(new_layout,None)
+        
+        # default mode = 0
+        # if idx > 3: mode = 1# debug
+        if mode == 0:
+            new_layout = krita_inscance_activedoc_createTransformMask(f'fix_group_Layout{idx}')
+            new_layout.setColorLabel(4)
+            new_layout.fromXML(transform_exe(tx,ty))
+            got_activeLayer_addChildNode(new_layout,None)
+        
+        if mode == 1:
+            pos_children(got_activeLayer,tx,ty)
+        
         tim_info('Finish position set:',st)
         idx += 1
         pdx += 1
@@ -400,6 +455,7 @@ def transform_exe(xxx,yyy):
     </transform_params>
     '''
 
+
 def replace_fileLayer(fileLayer,afterfile):
     # c:¥aaa¥bbb¥ccc.ext  ->  want to get ccc.ext
     # get path separator for each OS
@@ -416,6 +472,50 @@ def replace_fileLayer(fileLayer,afterfile):
 # Debug
 # ========================
 
+def pos_move(targ_layer,v0,v1):
+    targ_layer.move(v0,v1)
+
+
+def pos_children(targ_layer,v0,v1):
+    tchildren = targ_layer.childNodes()
+
+    for c in tchildren:
+        #print("name:" + c.name()+' type:'+c.type())
+        if c.type() == 'filelayer':continue
+        c.move(v0,v1)
+
+    for c in tchildren:
+        pos=c.position()
+        if c.type() == 'filelayer' and len(c.childNodes()) > 0:
+             for d in c.childNodes():
+                 if d.type() == 'transformmask':
+                     fix_layout = Krita.instance().activeDocument().createTransformMask(f'Layout_fix')
+                     fix_layout.fromXML(transform_exe(v0,v1))
+                     fix_layout.setColorLabel(4)
+                     c.addChildNode(fix_layout,None)
+                     continue
+             continue
+        
+        c.move(v0,v1)
+
+
+def get_tr_xy(xml):
+    xy = [0,0]
+    m=re.search(r'(?=transformedCenter).+(x="(\d+)")',xml)
+    if m != None:xy[0]=int(m.group(2))
+    m=re.search(r'(?=transformedCenter).+(y="(\d+)")',xml)
+    if m != None:xy[1]=int(m.group(2))
+    return xy
+
+def rep_tr_xml(b_xml,a_xml):
+    m=re.search(r'(?=transformedCenter)(.*?)(?=keepAspectRatio)',b_xml,re.S)
+    if m == None:return a_xml
+    rep = m.group()
+    n=re.search(r'(?=transformedCenter)(.*?)(?=keepAspectRatio)',a_xml,re.S)
+    trg = n.group()
+    
+    dist=a_xml.replace(trg,rep)
+    return dist
 
 def checkbox_toggle(s):
     if QtCore.Qt.Checked == s:
@@ -427,6 +527,9 @@ def combo_box_changed(cbox):
     # cbox = index of selected item
     texbox1.setText(pmenu[cbox][1])
     texbox2.setText(pmenu[cbox][2])
+
+def rad_clicked(s):
+    rad = s.sender()
 
 
 # ========================
@@ -445,8 +548,17 @@ hbox8 = QHBoxLayout()
 hb_chk = QHBoxLayout()
 hb_cbx = QHBoxLayout()
 hb_mes = QHBoxLayout()
+hb_rad = QHBoxLayout()
+hb_chk2 = QHBoxLayout()
+hb_hline = QHBoxLayout()
+hb2_hline = QHBoxLayout()
+
 fileButton = QPushButton("Select CSV file")
 fileButton.clicked.connect(opendialog)
+
+hb_rad.addWidget(label12)
+hb_rad.addWidget(rad1)
+hb_rad.addWidget(rad2)
 
 hbox1.addWidget(label1)
 hbox1.addWidget(texbox1)
@@ -478,32 +590,57 @@ hb_chk.addWidget(chkbox)
 
 # Combo box setting
 l = 0
-for itm in pmenu:
-    if itm[0]=='---': pbox.insertSeparator(l);l+=1;continue
-    pbox.addItem(itm[0]);l+=1
+for pm in pmenu:
+    if pm[0]=='---': pbox.insertSeparator(l);l+=1;continue
+    pbox.addItem(pm[0]);l+=1
 pbox.currentIndexChanged.connect(combo_box_changed)
 
 hb_cbx.addWidget(label9)
 hb_cbx.addWidget(pbox)
 hb_mes.addWidget(label10)
 
+hb_chk2.addWidget(chkbox2)
+hb_chk2.addWidget(texbox12)
+
+hl = QFrame()
+hl.setFrameShape(QFrame.HLine)
+hl.setFrameShadow(QFrame.Sunken)
+hl2 = QFrame()
+hl2.setFrameShape(QFrame.HLine)
+hl2.setFrameShadow(QFrame.Sunken)
+hb_hline.addWidget(hl)
+hb2_hline.addWidget(hl2)
+
 vbox.addLayout(hb_cbx)
 vbox.addLayout(hbox1)
 vbox.addLayout(hbox2)
 vbox.addLayout(hb_chk)
 vbox.addLayout(hb_mes)
+vbox.addLayout(hb_hline)
 vbox.addLayout(hbox3)
 vbox.addLayout(hbox4)
 vbox.addLayout(hbox5)
 vbox.addLayout(hbox6)
+vbox.addLayout(hb2_hline)
 vbox.addLayout(hbox7)
 vbox.addLayout(hbox8)
+vbox.addLayout(hb_rad)
+vbox.addLayout(hb_chk2)
 vbox.addWidget(fileButton)
+
+
+
+
+
+
+
+
+
 
 def init_main():
     # create dialog  and show it
     newDialog.setLayout(vbox)
-    newDialog.setWindowTitle("Replace text with data merge insertion") 
+    newDialog.setWindowTitle(dialog_title_txt) 
     newDialog.exec_() # show the dialog
 
 plugin_id = "data_merge"
@@ -523,5 +660,3 @@ class DataMergeGenerator(Extension):
     def createActions(self, window):
         self.action = window.createAction(plugin_id, plugin_menu_entry_name ,plugin_where)
         self.action.triggered.connect(init_main)
-
-
