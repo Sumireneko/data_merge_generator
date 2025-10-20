@@ -1,4 +1,4 @@
-# Data Merge Generator v1.6 for Krita 
+# Data Merge Generator v1.7 for Krita 
 
 This plugin working simple version of Data Merge.
 (v1.7) Support Krita v5.2.14 later (PyQt5 with Python 3.13)
