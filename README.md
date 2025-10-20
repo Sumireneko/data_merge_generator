@@ -1,7 +1,8 @@
 # Data Merge Generator v1.6 for Krita 
 
 This plugin working simple version of Data Merge.
-Require Krita v5.2.2 later
+(v1.7) Support Krita v5.2.14 later (PyQt5 with Python 3.13)
+(v1.6) Support Krita v5.2.2
 
 ### What is Data Merge?
 Arrange them in order according to the contents of the database (csv) based on the prepared template krita file. For example, it can be useful for printing number tags, equipment tags, and employee business cards.
@@ -11,7 +12,7 @@ Also,this plugin inspired from the script "[Improved version of Data Join](http:
 )"  for Adobe Illustrator.Thank you very much.
 
 ## Ussage
-See [Usage Manual](https://sumireneko.github.io/data_merge_generator/data_merge_gen/Manual.html)
+See [Usage Manual](https://sumireneko.github.io/data_merge/data_merge_gen/Manual.html)
 
 ### Note and Disclaimer
 * This plugin is experimental. It is not suitable for large amounts of data.
@@ -66,6 +67,13 @@ For example "E:3 CardTitleString", M:6 person_name,The number mean index.
 If not match the tag and data, use default name "New" use to.
 
 ## Version history
-* v1.6 : Support two place algorithms that Moveable and Editable, Add GroupLayerRenamer
-* v1.5.4 : fist release, Place to multiple kra file by page
+* 2025.10.18 v1.7 : Support two place algorithms that Moveable and Editable, Add GroupLayerRenamer
+ - Some bugfix, because this script doesn't work in Krita v5.2.14(PyQT5 with Python 3.13)
+ - Changed use an cloned layer node instead of copy paste action to new document.
+ - In Editable mode,fix unusual coordinates that has minus position in some case.
+ - Preliminary PyQt6 compatibility added Updated import logic to support PyQt6 for future Krita 6.x compatibility.
+ - Note: PyQt6 functionality has not been tested yet. This change is preparatory and not guaranteed to be stable.
+
+* 2024.02.17 v1.6 : Support two place algorithms that Moveable and Editable, Add GroupLayerRenamer
+* 202X.??.?? v1.5.4 : fist release, Place to multiple kra file by page
 
