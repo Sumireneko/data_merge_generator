@@ -1,7 +1,7 @@
 # ===============================================
-# Data Merge Generator v1.6 for Krita 
+# Data Merge Generator v1.7 for Krita 
 # ===============================================
-# Copyright (C) 2024 L.Sumireneko.M
+# Copyright (C) 2025 L.Sumireneko.M
 # This program is free software: you can redistribute it and/or modify it under the 
 # terms of the GNU General Public License as published by the Free Software Foundation,
 # either version 3 of the License, or (at your option) any later version.
@@ -13,21 +13,42 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see <https://www.gnu.org/licenses/>. 
 
-
-
 # This script is work SIMPLE data combine similar as ..Data-Merge,MailMerge
+
+import re, os, time
+import krita
+try:
+    if int(krita.qVersion().split('.')[0]) == 5:
+        raise
+    # PyQt6
+    from PyQt6.QtWidgets import (
+        QDialog, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QLineEdit,
+        QFileDialog, QComboBox, QMessageBox, QRadioButton, QButtonGroup, QFrame
+    )
+    from PyQt6.QtCore import (
+        QObject, QEvent, QTimer, QSignalBlocker, pyqtSignal, Qt
+    )
+    from PyQt6.QtGui import QGuiApplication, QClipboard
+
+except:
+    # PyQt5 fallback
+    from PyQt5.QtWidgets import (
+        QDialog, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QLineEdit,
+        QFileDialog, QComboBox, QMessageBox, QRadioButton, QButtonGroup, QFrame
+    )
+    from PyQt5.QtCore import (
+        QObject, QEvent, QTimer, QSignalBlocker, pyqtSignal, Qt
+    )
+    from PyQt5.QtGui import QGuiApplication, QClipboard
+
 from krita import *
-from PyQt5.QtWidgets import QDialog,QHBoxLayout,QVBoxLayout,QPushButton,QLabel,QLineEdit,QFileDialog,QComboBox,QMessageBox,QRadioButton,QButtonGroup,QFrame
-from PyQt5.QtCore import *
-from PyQt5.QtGui import QGuiApplication,QClipboard
-import re,os,time
 
 # ========================
 # Settings
 # ========================
 from .setting import *
 
-dialog_title_txt = "Data Merge Generator v1.6"
+dialog_title_txt = "Data Merge Generator v1.7"
 
 # ========================
 # GUI Settings
@@ -241,9 +262,14 @@ def opendialog():
     
     # find Template Layer
     templ = currentDoc.nodeByName("Template")
-    tw,th = templ.bounds().width(),templ.bounds().height()
+    cloned_layer = templ.clone()
+    cloned_layer.setName("Template")
+    if templ is None:
+        print("Error: Template layer not found in current document")
+        return
+    
+    tw, th = templ.bounds().width(), templ.bounds().height()
     currentDoc.setActiveNode(templ)
-    krita_instance.action('copy_layer_clipboard').trigger()
 
     # create new document 
     # createDocument(width, height, name, colorSpace, bitDepth, colorProfile, dpi)
@@ -263,7 +289,7 @@ def opendialog():
 
     print('------ Replace Start ------')
 
-    regloop(list,res,st)
+    regloop(list,res,st,cloned_layer)
     tim_info('Finished ',st)
 
     print('------ Finished ------')
@@ -272,7 +298,7 @@ def opendialog():
 
 
 # Main loop
-def regloop(list,res,st):
+def regloop(list,res,st,cloned_layer):
     global docx,docy,padx,pady,dx,dy,maxcol,umax,mode,rename_tag
     
     document_name = 'NewDocument'
@@ -282,6 +308,7 @@ def regloop(list,res,st):
     tags = []
     tags = list.pop(0).split(splitter)
 
+    # Create new document
     krita_instance = Krita.instance()
     krita_inscance_activedoc = krita_instance.activeDocument()
     krita_inscance_activedoc_createVectorLayer = krita_inscance_activedoc.createVectorLayer
@@ -289,14 +316,25 @@ def regloop(list,res,st):
 
     newDoc = krita_instance.createDocument(docx, docy, document_name, "RGBA", "U8", "", res)
     krita_instance.activeWindow().addView(newDoc) # Add New window
-    print(f'Resolution Setting: {res} ppi')
 
-    krita_instance.action('paste_layer_from_clipboard').trigger()
+    # Set cloned document
+    newDoc.rootNode().addChildNode(cloned_layer, None)
+
+    print(f'Resolution Setting: {res} ppi')
     newDoc.refreshProjection()
     base = newDoc.rootNode()
     
     temp_origin_layer = newDoc.nodeByName('Template')
-    b=temp_origin_layer.bounds()
+
+
+    b=None
+    if temp_origin_layer is not None:
+        b = temp_origin_layer.bounds()
+    else:
+        print("Error: temp_origin_layer is None")
+
+
+
     w,h = b.width(),b.height()
     
     
@@ -351,10 +389,12 @@ def regloop(list,res,st):
         got_activeLayer.setName(newname)
         base.addChildNode( got_activeLayer, None )
 
+
         # These nodes are remove when replace finished after
         text_layers = get_vector_node_from_group(got_activeLayer)
         file_layers = get_file_node_from_group(got_activeLayer)
         
+
         print(f'------ Group Layer Output : {newname}------')
         tim_info('List:',st)
         # Check nodes  from template copyed layers,and extract only text layer
@@ -421,7 +461,7 @@ def regloop(list,res,st):
         
         if mode == 1:
             pos_children(got_activeLayer,tx,ty)
-        
+            newDoc.refreshProjection()
         tim_info('Finish position set:',st)
         idx += 1
         pdx += 1
@@ -480,12 +520,13 @@ def pos_children(targ_layer,v0,v1):
     tchildren = targ_layer.childNodes()
 
     for c in tchildren:
-        #print("name:" + c.name()+' type:'+c.type())
+
         if c.type() == 'filelayer':continue
         c.move(v0,v1)
 
     for c in tchildren:
         pos=c.position()
+
         if c.type() == 'filelayer' and len(c.childNodes()) > 0:
              for d in c.childNodes():
                  if d.type() == 'transformmask':
@@ -495,8 +536,21 @@ def pos_children(targ_layer,v0,v1):
                      c.addChildNode(fix_layout,None)
                      continue
              continue
-        
-        c.move(v0,v1)
+
+    for c in tchildren:
+        if c.type() == 'paintlayer':
+            b = c.bounds()
+            pos = c.position()
+            # print("name:" + c.name() + ' type:' + c.type(), "x", v0, "y", v1)
+            # print("pos:", pos.x(), pos.y())
+            # print(f"{c.name()} bounds offset: ({b.x()}, {b.y()}) size: {b.width()}x{b.height()}")
+    
+            dx = v0 - b.x()
+            dy = v1 - b.y()
+            c.move(dx, dy)
+            c.move(v0,v1)
+
+
 
 
 def get_tr_xy(xml):
