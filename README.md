@@ -67,7 +67,7 @@ For example "E:3 CardTitleString", M:6 person_name,The number mean index.
 If not match the tag and data, use default name "New" use to.
 
 ## Version history
-* 2025.10.18 v1.7 : Support two place algorithms that Moveable and Editable, Add GroupLayerRenamer
+* 2025.10.18 v1.7 :
  - Some bugfix, because this script doesn't work in Krita v5.2.14(PyQT5 with Python 3.13)
  - Changed use an cloned layer node instead of copy paste action to new document.
  - In Editable mode,fix unusual coordinates that has minus position in some case.
