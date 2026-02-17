@@ -1,7 +1,7 @@
 # ===============================================
-# Data Merge Generator v1.7 for Krita 
+# Data Merge Generator v1.8 for Krita 
 # ===============================================
-# Copyright (C) 2025 L.Sumireneko.M
+# Copyright (C) 2026 L.Sumireneko.M
 # This program is free software: you can redistribute it and/or modify it under the 
 # terms of the GNU General Public License as published by the Free Software Foundation,
 # either version 3 of the License, or (at your option) any later version.
@@ -15,76 +15,27 @@
 
 # This script is work SIMPLE data combine similar as ..Data-Merge,MailMerge
 
-import re, os, time
+import re, os, time, json ,platform
 import krita
-try:
-    if int(krita.qVersion().split('.')[0]) == 5:
-        raise
-    # PyQt6
-    from PyQt6.QtWidgets import (
-        QDialog, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QLineEdit,
-        QFileDialog, QComboBox, QMessageBox, QRadioButton, QButtonGroup, QFrame
-    )
-    from PyQt6.QtCore import (
-        QObject, QEvent, QTimer, QSignalBlocker, pyqtSignal, Qt
-    )
-    from PyQt6.QtGui import QGuiApplication, QClipboard
-
-except:
-    # PyQt5 fallback
-    from PyQt5.QtWidgets import (
-        QDialog, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QLineEdit,
-        QFileDialog, QComboBox, QMessageBox, QRadioButton, QButtonGroup, QFrame
-    )
-    from PyQt5.QtCore import (
-        QObject, QEvent, QTimer, QSignalBlocker, pyqtSignal, Qt
-    )
-    from PyQt5.QtGui import QGuiApplication, QClipboard
-
-from krita import *
+from .qt_compat import (
+    QtCore, QtGui, QC, qt_major, qt_exec,qt_event,QIODevice,
+    QDialog, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QLineEdit,
+    QFileDialog, QComboBox, QMessageBox, QRadioButton, QButtonGroup, QFrame,
+    QObject, QEvent, QTimer, QSignalBlocker, pyqtSignal, Qt, QFile, QPoint,
+    QGuiApplication, QClipboard, QMimeDatabase,QCheckBox
+)
 
 # ========================
 # Settings
 # ========================
 from .setting import *
 
-dialog_title_txt = "Data Merge Generator v1.7"
+dialog_title_txt = "Data Merge Generator v1.8"
 
-# ========================
-# GUI Settings
-# ========================
-label1= QLabel("Document Width(px)")
-texbox1 = QLineEdit(str(docx))
-texbox1.resize(40, 20)
+plugin_id = "data_merge"
+plugin_menu_entry_name = "Data Merge..."
+plugin_where = "tools/scripts"
 
-label2= QLabel("Document Height(px)")
-texbox2 = QLineEdit(str(docy))
-texbox2.resize(40, 20)
-
-label3= QLabel("Padding W(px)")
-texbox3 = QLineEdit(str(padx))
-texbox3.resize(40, 20)
-
-label4= QLabel("Padding H(px)")
-texbox4 = QLineEdit(str(pady))
-
-label5= QLabel("Base X(px)")
-texbox5 = QLineEdit(str(dx))
-
-label6= QLabel("Base Y(px)")
-texbox6 = QLineEdit(str(dy))
-
-
-label7= QLabel("Max number of placed per row")
-texbox7 = QLineEdit(str(maxcol))
-
-label8= QLabel(" ")
-chkbox = QCheckBox("Override by layout size,if document size smaller")
-
-label9= QLabel("Preset")
-label10= QLabel("This dpi is rough indication.\n Template's resolution apply to a generated image")
-
-pbox = QComboBox()
 pmenu=[
     ['A4(V) - (300dpi W2480 x H3508 px)', '2480', '3508'],
     ['A4(H) - (300dpi W3508 x H2480 px)', '3508', '2480'],
@@ -104,24 +55,9 @@ pmenu=[
     ['XGA - ( W1024 x H768 px)', '1024', '768'],
     ['2K - ( W1920 x H1080 px)', '1920', '1080']
 ]
-label11 = QLabel("Placements per page (0=ALL)")
-texbox11 = QLineEdit(str(umax))
 
-label12 = QLabel("Place algorithm for")
 
-rg = QButtonGroup()
-rad1 = QRadioButton("Moveable")
-rad2 = QRadioButton("Editable")
-rad1.setChecked(True)
 
-mode = 0 # place algorithm
-rg.addButton(rad1, 0)
-rg.addButton(rad2, 1)
-
-chkbox2 = QCheckBox("Group renamer by the tag")
-texbox12 = QLineEdit(str(rename_tag))
-
-newDialog = QDialog()
 
 # ========================
 # Mode Setting
@@ -134,6 +70,38 @@ newDialog = QDialog()
 
 image_mode = True
 old_time = 0
+
+# ========================
+# Debug
+# ========================
+TEST_DUMP_TRANSFORM_XML = False
+
+def dump_transform_xml():
+    doc = Krita.instance().activeDocument()
+    if not doc:
+        print("No active document")
+        return
+
+    node = doc.activeNode()
+    if not node:
+        print("No active node")
+        return
+
+    # make TransformMask 
+    mask = doc.createTransformMask("TestMask")
+    node.addChildNode(mask, None)
+
+    # capture some movement
+    xml = mask.toXML()
+
+    print("===== TransformMask XML Dump =====")
+    print(xml)
+    print("===== END =====")
+
+    # Remove
+    node.removeChildNode(mask)
+
+
 # ========================
 # Utilites
 # ========================
@@ -153,6 +121,12 @@ def pos_info(obj,s):
     pos = obj.position()
     print( s + f'Name:{obj.name()} Position:{pos.x()},{pos.y()}')
 
+
+
+
+
+
+
 # ========================
 # Sub Process
 # ========================
@@ -169,7 +143,7 @@ def read_file(file_path):
         return
 
     file = QFile(full_path)
-    if file.open(QIODevice.ReadOnly):
+    if file.open(QC.IO.ReadOnly):
         rawdata = file.readAll()
         file.close()
         data = f"{str(rawdata, 'utf-8')}"
@@ -224,251 +198,225 @@ def get_txt_param(txt):
     txt = re.sub(r'(\.|\*|\\|\'|\"|\{|\}|:|\||;)','',txt) 
     return txt
 
+TEST_MODE = False
 
 def opendialog():
-    global docx,docy,padx,pady,dx,dy,maxcol,umax,mode,rename_tag,dialog_title_txt
+    global docx, docy, padx, pady, dx, dy, maxcol, umax, mode, rename_tag, dialog_title_txt, records
     print('Button clicked!!')
-    docx = get_param(texbox1.text())
-    docy = get_param(texbox2.text())
-    padx = get_param(texbox3.text())
-    pady = get_param(texbox4.text())
-    dx = get_param(texbox5.text())
-    dy = get_param(texbox6.text())
-    maxcol = get_param(texbox7.text())
-    umax = get_param(texbox11.text())
-    mode = rg.checkedId()# return 0 or 1 from radiobtngroup
-    rename_tag= get_txt_param(texbox12.text())
 
-    
-    print("---- Read Parameters ----")
-    file = QFileDialog.getOpenFileName(None,'Open CSV File',os.path.expanduser('~' + '/Desktop'), filter = 'CSV or TXT (*.csv *.txt)')
-    # file = ('file path',' extension filter')
-    # print(file,file[0]) ,docx,docy,padx,pady,dx,dy,maxcol
-    
-    if file[0] == '':print('No select to file for open');return
-    print('Select file:'+file[0])
-    csv_path = file[0]
+    if TEST_DUMP_TRANSFORM_XML:
+        dump_transform_xml()
+        return
+
+    # Read Parameters from Dialog 
+    docx = get_param(c_dlg.texbox1.text())
+    docy = get_param(c_dlg.texbox2.text())
+    padx = get_param(c_dlg.texbox3.text())
+    pady = get_param(c_dlg.texbox4.text())
+    dx = get_param(c_dlg.texbox5.text())
+    dy = get_param(c_dlg.texbox6.text())
+    maxcol = get_param(c_dlg.texbox7.text())
+    umax = get_param(c_dlg.texbox11.text())
+    mode = c_dlg.rg.checkedId()  # 0: Mask Mode, 1: Direct Mode
+    rename_tag = get_txt_param(c_dlg.texbox12.text())
+
+    #  Handle CSV File Path 
+    if TEST_MODE:
+        csv_path = "/file_path/to/template.csv"
+    else:
+        file = QFileDialog.getOpenFileName(None, 'Open CSV File', os.path.expanduser('~' + '/Desktop'), filter='CSV or TXT (*.csv *.txt)')
+        if not file[0]:
+            print("No file selected")
+            return
+        csv_path = file[0]
 
     st = time.time()
-    tim_info('Start ',st)
     
     krita_instance = Krita.instance()
     currentDoc = krita_instance.activeDocument()
+    if not currentDoc:
+        return
     res = currentDoc.resolution()
 
-    # Read csv data file
+    # --- Data and Template Preparation ---
     data = read_file(csv_path)
-    list = data.split(line_break) # detect line break
+    data_list = data.split(line_break) 
     
-    # find Template Layer
     templ = currentDoc.nodeByName("Template")
-    cloned_layer = templ.clone()
-    cloned_layer.setName("Template")
     if templ is None:
-        print("Error: Template layer not found in current document")
+        print("Error: 'Template' layer not found")
         return
-    
+
+    # Create a clean clone for processing
+    cloned_layer = templ.clone()
+    cloned_layer.setName("Template_Cloned")
+
+    # WORKAROUND: Remove existing TransformMasks inside FileLayers to prevent freezes
+    # Because Current Krita freeze with calcuration of FileLayer+TransformMask thumbnail
+    # DISABLED: Keeping TransformMasks on FileLayers significantly increases
+    # processing load and may cause Krita to freeze during duplication.
+    for child in cloned_layer.childNodes():
+        if child.type() == 'filelayer':
+            for sub_child in child.childNodes():
+                if sub_child.type() == 'transformmask':
+                    child.removeChildNode(sub_child)# if this disable, Transform mask will applied
+
+    # Canvas Size Calculation 
     tw, th = templ.bounds().width(), templ.bounds().height()
-    currentDoc.setActiveNode(templ)
-
-    # create new document 
-    # createDocument(width, height, name, colorSpace, bitDepth, colorProfile, dpi)
+    total_items = len(data_list)
     
-    max_width = dx*2+(maxcol*(tw+padx))
-    maxrow = (len(list)+maxcol) // maxcol
-    max_height = dy*2+(maxrow*(th+pady))
+    if c_dlg.chkbox.isChecked():
+        max_width = dx * 2 + (maxcol * (tw + padx))
+        if docx < max_width:
+            docx = max_width
+            
+        if umax > 0:
+            up_row = (umax + maxcol - 1) // maxcol
+            target_height = dy * 2 + (up_row * (th + pady))
+        else:
+            max_row = (total_items + maxcol - 1) // maxcol
+            target_height = dy * 2 + (max_row * (th + pady))
+            
+        if docy < target_height:
+            docy = target_height
+
+    # Start Processing 
+    print('------ Process Start ------')
+    regloop(data_list, res, st, cloned_layer)
     
-    up_row = (umax+maxcol) // maxcol
-    up_height = dy*2+(up_row*(th+pady))
-    
-    if QtCore.Qt.Checked == chkbox.checkState():
-        if docx < max_width: docx = max_width
-        if docy < max_height:
-            if umax > 0:max_height = up_height
-            docy = max_height
-
-    print('------ Replace Start ------')
-
-    regloop(list,res,st,cloned_layer)
-    tim_info('Finished ',st)
-
-    print('------ Finished ------')
-    tim_info('Remove_temp layer ',st)
-    newDialog.close()
+    tim_info('All Process Finished ', st)
+    c_dlg.close()
 
 
-# Main loop
-def regloop(list,res,st,cloned_layer):
-    global docx,docy,padx,pady,dx,dy,maxcol,umax,mode,rename_tag
+def regloop(data_list, res, st, cloned_layer):
+    global docx, docy, padx, pady, dx, dy, maxcol, umax, mode, rename_tag, records
     
     document_name = 'NewDocument'
-    pdx,idx = 0,0
+    pdx, idx = 0, 0
     page = 0
     
-    tags = []
-    tags = list.pop(0).split(splitter)
-
-    # Create new document
+    tags = data_list.pop(0).split(splitter)
     krita_instance = Krita.instance()
-    krita_inscance_activedoc = krita_instance.activeDocument()
-    krita_inscance_activedoc_createVectorLayer = krita_inscance_activedoc.createVectorLayer
-    krita_inscance_activedoc_createTransformMask = krita_inscance_activedoc.createTransformMask
-
+    
+    # Initialize First Document
     newDoc = krita_instance.createDocument(docx, docy, document_name, "RGBA", "U8", "", res)
-    krita_instance.activeWindow().addView(newDoc) # Add New window
-
-    # Set cloned document
+    krita_instance.activeWindow().addView(newDoc)
     newDoc.rootNode().addChildNode(cloned_layer, None)
-
-    print(f'Resolution Setting: {res} ppi')
     newDoc.refreshProjection()
+    
     base = newDoc.rootNode()
+    temp_origin_layer = newDoc.nodeByName('Template_Cloned')
     
-    temp_origin_layer = newDoc.nodeByName('Template')
+    b = temp_origin_layer.bounds()
+    w, h = b.width(), b.height()
 
-
-    b=None
-    if temp_origin_layer is not None:
-        b = temp_origin_layer.bounds()
-    else:
-        print("Error: temp_origin_layer is None")
-
-
-
-    w,h = b.width(),b.height()
-    
-    
-    row,col = 0,0
-    up_max = umax
-    
-    # For grouplayer renamer mode
+    mode_prefix = ["M:", "E:"][mode]
     rename_idx = -1
-    if QtCore.Qt.Checked == chkbox2.checkState():
+    if c_dlg.chkbox2.isChecked():
         for i, v in enumerate(tags):
             if v == rename_tag:
                 rename_idx = i
-                continue
-    
-    # For grouplayer name prefix
-    mode_name = ["M:","E:"]
-    prefix = mode_name[mode]
-    
-    # The loop begin
-    for itm in list:
-    
-        if up_max > 0 and idx > 0 and idx % up_max == 0:
-            # Add new document
+                break
+
+    # Main Loop
+    for itm in data_list:
+        # Handle Pagination
+        if umax > 0 and idx > 0 and idx % umax == 0:
             page += 1
-            newDoc.nodeByName("Template").remove()
-            newDoc = krita_instance.createDocument(docx,docy, f'{document_name}{page}', "RGBA", "U8", "", res)
-            krita_instance.activeWindow().addView(newDoc) # shows it in the application
+            # Remove seed template from old doc
+            old_temp = newDoc.nodeByName("Template_Cloned")
+            if old_temp: old_temp.remove()
+            
+            newDoc = krita_instance.createDocument(docx, docy, f'{document_name}{page}', "RGBA", "U8", "", res)
+            krita_instance.activeWindow().addView(newDoc)
+            
+            # Re-import template via clipboard
             krita_instance.action('paste_layer_from_clipboard').trigger()
             newDoc.refreshProjection()
+            
             base = newDoc.rootNode()
-            temp_origin_layer = newDoc.nodeByName('Template')
-            b=temp_origin_layer.bounds()
-            w,h = b.width(),b.height()
-            pdx,row,col = 0,0,0
+            temp_origin_layer = newDoc.nodeByName('Template_Cloned')
+            pdx = 0
 
-        prts = itm.split(splitter) # splitter in data file
+        prts = itm.split(splitter)
+        
+        # Layer Naming
+        newname = f'{mode_prefix}New{idx}'
+        if c_dlg.chkbox2.isChecked() and rename_idx != -1:
+            name_val = get_txt_param(prts[rename_idx])
+            newname = f'{mode_prefix}{idx}_{name_val}'
 
-        # Copy template Layer and duplicate it
-        
-        newname = f'{prefix}New{idx}'
-        
-        # If grouplayer renamer is enable
-        if QtCore.Qt.Checked == chkbox2.checkState() and rename_idx != -1 :
-            name = get_txt_param(prts[rename_idx])
-            newname = f'{prefix}{idx}_{name}'
-
-        
-        # if idx > 2: continue # debug for revert
+        # Duplicate and Add
         got_activeLayer = temp_origin_layer.duplicate()
-        got_activeLayer_findChildNodes = got_activeLayer.findChildNodes
-        got_activeLayer_addChildNode = got_activeLayer.addChildNode
         got_activeLayer.setName(newname)
-        base.addChildNode( got_activeLayer, None )
+        base.addChildNode(got_activeLayer, None)
 
+        # WORKAROUND: Clean up inner masks in the duplicate
+        # DISABLED: Keeping TransformMasks on FileLayers significantly increases
+        # processing load and may cause Krita to freeze during duplication.
+        for child in got_activeLayer.childNodes():
+            if child.type() == 'filelayer':
+                for sub_child in child.childNodes():
+                    if sub_child.type() == 'transformmask':
+                        child.removeChildNode(sub_child)
 
-        # These nodes are remove when replace finished after
         text_layers = get_vector_node_from_group(got_activeLayer)
-        file_layers = get_file_node_from_group(got_activeLayer)
         
-
-        print(f'------ Group Layer Output : {newname}------')
-        tim_info('List:',st)
-        # Check nodes  from template copyed layers,and extract only text layer
-        
+        # 1. Image Replacement
         if image_mode:
-            for node in file_layers:
-                mat,rdx = 0,0
-                ntype = node.type()
-                #if rdx == 0: tim_info(f'Replace start: {ntype}',st)
-                for i in range(len(prts)):
-                     # if tag contain image layer tag %%
-                     if tags[i].startswith(img_layr_tag):
-                         ichk=[];ichk= got_activeLayer_findChildNodes(tags[i])
-                         if len(ichk) : replace_fileLayer(ichk[0],prts[i]) # Image filename Replace
+            for i, tag in enumerate(tags):
+                if tag.startswith(img_layr_tag):
+                    targets = got_activeLayer.findChildNodes(tag)
+                    if targets:
+                        replace_fileLayer(targets[0], prts[i])
         
+        # 2. Vector/Text Replacement
         for node in text_layers:
-            mat,rdx = 0,0
-            ntype = node.type()
-            
-            if ntype== 'vectorlayer': svgdata = node.toSvg()
-            #if rdx == 0: tim_info(f'Replace start: {ntype}',st)
-            
-            for rd in prts:
-                # skip file Layer tag
-                if tags[rdx].startswith(img_layr_tag) and image_mode: rdx += 1; continue
-
-                pat = f'{lt}{tags[rdx]}{gt}'
-                #print(pat)
+            if node.type() == 'vectorlayer':
+                svgdata = node.toSvg()
+                replaced = False
+                for i, tag in enumerate(tags):
+                    if tag.startswith(img_layr_tag) and image_mode: continue
+                    pattern = f'{lt}{tag}{gt}'
+                    if pattern in svgdata:
+                        svgdata = svgdata.replace(pattern, prts[i])
+                        replaced = True
                 
-                if (re.search(pat,svgdata)):
-                    mat += 1
-                    #print( f'Success:{mat}'  )
-                    svgdata = svgdata.replace(pat,rd) # match and replace
-                    #print(f'RegNo.{pat} , replace to {rd} ,in list:{idx}')
-                rdx += 1
-            # Loop End
-            if mat > 0:
-                vnode = krita_inscance_activedoc_createVectorLayer('vector')
-                vnode.addShapesFromSvg(svgdata)
-                got_activeLayer_addChildNode( vnode , None )
+                if replaced:
+                    vnode = newDoc.createVectorLayer('vector_new')
+                    vnode.addShapesFromSvg(svgdata)
+                    got_activeLayer.addChildNode(vnode, None)
 
-        # Loop End
-
-        # Layout
-        col = pdx % maxcol # 0123401234...
-        row = 0 if pdx == 0 else pdx // maxcol
-        #row = row if page == 0 else (idx-(up_max*(page-1))) // maxcol
-        
-        tim_info(f'\nFinished all replace:',st)
-        # remove original nodes
+        # 3. Cleanup original vectors
         for n in text_layers:
             n.remove()
-        tim_info('Remove text_layers:',st)
-        # Position set
-        tx,ty = dx+(col*(w+padx)), dy+(row*(h+pady))
-        
-        # default mode = 0
-        # if idx > 3: mode = 1# debug
-        if mode == 0:
-            new_layout = krita_inscance_activedoc_createTransformMask(f'fix_group_Layout{idx}')
-            new_layout.setColorLabel(4)
-            new_layout.fromXML(transform_exe(tx,ty))
-            got_activeLayer_addChildNode(new_layout,None)
-        
-        if mode == 1:
-            pos_children(got_activeLayer,tx,ty)
-            newDoc.refreshProjection()
-        tim_info('Finish position set:',st)
+
+        # Position and Layout 
+        col, row = pdx % maxcol, pdx // maxcol
+        tx, ty = dx + (col * (w + padx)), dy + (row * (h + pady))
+
+        if mode == 0: # Transform Mask Mode
+            mask = newDoc.createTransformMask(f'layout_mask_{idx}')
+            mask.setColorLabel(4)
+            mask.fromXML(transform_exe(tx, ty))
+            got_activeLayer.addChildNode(mask, None)
+        elif mode == 1: # Direct Edit Mode
+            # Mode 1: Reset FileLayer internal position before moving parent ---
+            pos_children(got_activeLayer, tx, ty, newDoc)
+
         idx += 1
         pdx += 1
-        # Loop End
     
-    newDoc.nodeByName("Template").remove()
+    # Final cleanup of seed template
+    final_temp = newDoc.nodeByName("Template_Cloned")
+    if final_temp:
+        final_temp.remove()
+    
+    newDoc.refreshProjection()
 
+
+
+# The transform mask that based on Krita 5.x 
 def transform_exe(xxx,yyy):
     return f'''<!DOCTYPE transform_params>
     <transform_params>
@@ -487,6 +435,7 @@ def transform_exe(xxx,yyy):
     <scaleY value="1" type="value"/>
     <shearX value="0" type="value"/>
     <shearY value="0" type="value"/>
+    <boundsRotation type="value" value="0"/>
     <keepAspectRatio value="0" type="value"/>
     <flattenedPerspectiveTransform type="transform" m31="0" m33="1" m12="0" m13="0" m23="0" m32="0" m21="0" m11="1" m22="1"/>
     <filterId value="Bilinear" type="value"/>
@@ -496,8 +445,9 @@ def transform_exe(xxx,yyy):
     '''
 
 
-def replace_fileLayer(fileLayer,afterfile):
-    # c:¥aaa¥bbb¥ccc.ext  ->  want to get ccc.ext
+
+def replace_fileLayer_old(fileLayer,afterfile):
+    # c:¥aaa¥bbb¥ccc.ext  ->  want to get ccc.ext 
     # get path separator for each OS
     # separate from right side , part[-1] = ccc.ext
     fpath = fileLayer.path()
@@ -508,6 +458,26 @@ def replace_fileLayer(fileLayer,afterfile):
     #fileLayer.setProperties(fileLayer.path().replace(dummyfile,afterfile),'None','Bicubic')
     fileLayer.resetCache()
 
+
+def replace_fileLayer(fileLayer, afterfile):
+    # Standardize path for both OS
+    fpath = fileLayer.path()
+    if platform.system() == "Windows":
+        fpath = fpath.replace('\\', '/')
+    
+    # Split by '/' to get the filename regardless of os.sep
+    parts = fpath.split('/')
+    old_filename = parts[-1]
+
+    # Reconstruct path and apply properties
+    new_path = fpath.replace(old_filename, afterfile)
+    
+    fileLayer.setProperties(new_path, 'None', 'Bicubic')
+    fileLayer.resetCache()
+
+
+
+
 # ========================
 # Debug
 # ========================
@@ -516,42 +486,22 @@ def pos_move(targ_layer,v0,v1):
     targ_layer.move(v0,v1)
 
 
-def pos_children(targ_layer,v0,v1):
-    tchildren = targ_layer.childNodes()
+def pos_children(targ_layer, tx, ty, newDoc):
+    """
+    Moves all child nodes to the target position (tx, ty) based on their original offsets.
+    """
+    if not targ_layer:
+        return
 
-    for c in tchildren:
-
-        if c.type() == 'filelayer':continue
-        c.move(v0,v1)
-
-    for c in tchildren:
-        pos=c.position()
-
-        if c.type() == 'filelayer' and len(c.childNodes()) > 0:
-             for d in c.childNodes():
-                 if d.type() == 'transformmask':
-                     fix_layout = Krita.instance().activeDocument().createTransformMask(f'Layout_fix')
-                     fix_layout.fromXML(transform_exe(v0,v1))
-                     fix_layout.setColorLabel(4)
-                     c.addChildNode(fix_layout,None)
-                     continue
-             continue
-
-    for c in tchildren:
-        if c.type() == 'paintlayer':
-            b = c.bounds()
-            pos = c.position()
-            # print("name:" + c.name() + ' type:' + c.type(), "x", v0, "y", v1)
-            # print("pos:", pos.x(), pos.y())
-            # print(f"{c.name()} bounds offset: ({b.x()}, {b.y()}) size: {b.width()}x{b.height()}")
-    
-            dx = v0 - b.x()
-            dy = v1 - b.y()
-            c.move(dx, dy)
-            c.move(v0,v1)
-
-
-
+    children = targ_layer.childNodes()
+    for child in children:
+        # Correct Krita API: Use position() to get a QPoint object
+        original_pos = child.position()
+        ox = original_pos.x()
+        oy = original_pos.y()
+        
+        # Move child to: Target position + Original offset
+        child.move(tx + ox, ty + oy)
 
 def get_tr_xy(xml):
     xy = [0,0]
@@ -572,134 +522,197 @@ def rep_tr_xml(b_xml,a_xml):
     return dist
 
 def checkbox_toggle(s):
-    if QtCore.Qt.Checked == s:
-        label8.setText("Checked")
+    if QC.CheckState.Checked == s:
+        c_dlg.label8.setText("Checked")
     else:
-        label8.setText("NotChecked.")
+        c_dlg.label8.setText("NotChecked.")
+
 
 def combo_box_changed(cbox):
     # cbox = index of selected item
-    texbox1.setText(pmenu[cbox][1])
-    texbox2.setText(pmenu[cbox][2])
+    c_dlg.texbox1.setText(pmenu[cbox][1])
+    c_dlg.texbox2.setText(pmenu[cbox][2])
 
 def rad_clicked(s):
     rad = s.sender()
 
 
-# ========================
-# GUI
-# ========================
-# add button and layout for button
-vbox = QVBoxLayout()
-hbox1 = QHBoxLayout()
-hbox2 = QHBoxLayout()
-hbox3 = QHBoxLayout()
-hbox4 = QHBoxLayout()
-hbox5 = QHBoxLayout()
-hbox6 = QHBoxLayout()
-hbox7 = QHBoxLayout()
-hbox8 = QHBoxLayout()
-hb_chk = QHBoxLayout()
-hb_cbx = QHBoxLayout()
-hb_mes = QHBoxLayout()
-hb_rad = QHBoxLayout()
-hb_chk2 = QHBoxLayout()
-hb_hline = QHBoxLayout()
-hb2_hline = QHBoxLayout()
+def ui_composite():
+    # create dialog
+    dlg = QDialog()
+    dlg.setWindowTitle(dialog_title_txt)
 
-fileButton = QPushButton("Select CSV file")
-fileButton.clicked.connect(opendialog)
+    # ========================
+    # GUI Settings 
+    # ========================
+    label1 = QLabel("Document Width(px)")
+    dlg.texbox1 = QLineEdit(str(docx))
+    dlg.texbox1.resize(40, 20)
 
-hb_rad.addWidget(label12)
-hb_rad.addWidget(rad1)
-hb_rad.addWidget(rad2)
+    label2 = QLabel("Document Height(px)")
+    dlg.texbox2 = QLineEdit(str(docy))
+    dlg.texbox2.resize(40, 20)
 
-hbox1.addWidget(label1)
-hbox1.addWidget(texbox1)
+    label3 = QLabel("Padding W(px)")
+    dlg.texbox3 = QLineEdit(str(padx))
+    dlg.texbox3.resize(40, 20)
 
-hbox2.addWidget(label2)
-hbox2.addWidget(texbox2)
+    label4 = QLabel("Padding H(px)")
+    dlg.texbox4 = QLineEdit(str(pady))
 
-hbox3.addWidget(label3)
-hbox3.addWidget(texbox3)
+    label5 = QLabel("Base X(px)")
+    dlg.texbox5 = QLineEdit(str(dx))
 
-hbox4.addWidget(label4)
-hbox4.addWidget(texbox4)
+    label6 = QLabel("Base Y(px)")
+    dlg.texbox6 = QLineEdit(str(dy))
 
-hbox5.addWidget(label5)
-hbox5.addWidget(texbox5)
+    label7 = QLabel("Max number of placed per row")
+    dlg.texbox7 = QLineEdit(str(maxcol))
 
-hbox6.addWidget(label6)
-hbox6.addWidget(texbox6)
+    dlg.label8 = QLabel(" ")
+    dlg.chkbox = QCheckBox("Override by layout size,if document size smaller")
 
-hbox7.addWidget(label7)
-hbox7.addWidget(texbox7)
+    label9 = QLabel("Preset")
+    label10 = QLabel("This dpi is rough indication.\n Template's resolution apply to a generated image")
 
-hbox8.addWidget(label11)
-hbox8.addWidget(texbox11)
+    dlg.pbox = QComboBox()
 
-hb_chk.addWidget(chkbox)
-#hbox8.addWidget(label8)
-#chkbox.stateChanged.connect(checkbox_toggle)
+    label11 = QLabel("Placements per page (0=ALL)")
+    dlg.texbox11 = QLineEdit(str(umax))
 
-# Combo box setting
-l = 0
-for pm in pmenu:
-    if pm[0]=='---': pbox.insertSeparator(l);l+=1;continue
-    pbox.addItem(pm[0]);l+=1
-pbox.currentIndexChanged.connect(combo_box_changed)
+    label12 = QLabel("Place algorithm for")
 
-hb_cbx.addWidget(label9)
-hb_cbx.addWidget(pbox)
-hb_mes.addWidget(label10)
+    dlg.rg = QButtonGroup(dlg)
+    dlg.rad1 = QRadioButton("Moveable")
+    dlg.rad2 = QRadioButton("Editable")
+    dlg.rad1.setChecked(True)
 
-hb_chk2.addWidget(chkbox2)
-hb_chk2.addWidget(texbox12)
+    mode = 0  # place algorithm
+    dlg.rg.addButton(dlg.rad1, 0)
+    dlg.rg.addButton(dlg.rad2, 1)
 
-hl = QFrame()
-hl.setFrameShape(QFrame.HLine)
-hl.setFrameShadow(QFrame.Sunken)
-hl2 = QFrame()
-hl2.setFrameShape(QFrame.HLine)
-hl2.setFrameShadow(QFrame.Sunken)
-hb_hline.addWidget(hl)
-hb2_hline.addWidget(hl2)
+    dlg.chkbox2 = QCheckBox("Group renamer by the tag")
+    dlg.texbox12 = QLineEdit(str(rename_tag))
 
-vbox.addLayout(hb_cbx)
-vbox.addLayout(hbox1)
-vbox.addLayout(hbox2)
-vbox.addLayout(hb_chk)
-vbox.addLayout(hb_mes)
-vbox.addLayout(hb_hline)
-vbox.addLayout(hbox3)
-vbox.addLayout(hbox4)
-vbox.addLayout(hbox5)
-vbox.addLayout(hbox6)
-vbox.addLayout(hb2_hline)
-vbox.addLayout(hbox7)
-vbox.addLayout(hbox8)
-vbox.addLayout(hb_rad)
-vbox.addLayout(hb_chk2)
-vbox.addWidget(fileButton)
+    # ========================
+    # Layouts
+    # ========================
+    vbox = QVBoxLayout()
+    hbox1 = QHBoxLayout()
+    hbox2 = QHBoxLayout()
+    hbox3 = QHBoxLayout()
+    hbox4 = QHBoxLayout()
+    hbox5 = QHBoxLayout()
+    hbox6 = QHBoxLayout()
+    hbox7 = QHBoxLayout()
+    hbox8 = QHBoxLayout()
+    hb_chk = QHBoxLayout()
+    hb_cbx = QHBoxLayout()
+    hb_mes = QHBoxLayout()
+    hb_rad = QHBoxLayout()
+    hb_chk2 = QHBoxLayout()
+    hb_hline = QHBoxLayout()
+    hb2_hline = QHBoxLayout()
 
+    # file select button
+    fileButton = QPushButton("Select CSV file")
+    fileButton.clicked.connect(opendialog)
 
+    # radio buttons
+    hb_rad.addWidget(label12)
+    hb_rad.addWidget(dlg.rad1)
+    hb_rad.addWidget(dlg.rad2)
 
+    # row 1
+    hbox1.addWidget(label1)
+    hbox1.addWidget(dlg.texbox1)
 
+    # row 2
+    hbox2.addWidget(label2)
+    hbox2.addWidget(dlg.texbox2)
 
+    # row 3
+    hbox3.addWidget(label3)
+    hbox3.addWidget(dlg.texbox3)
 
+    # row 4
+    hbox4.addWidget(label4)
+    hbox4.addWidget(dlg.texbox4)
 
+    # row 5
+    hbox5.addWidget(label5)
+    hbox5.addWidget(dlg.texbox5)
 
+    # row 6
+    hbox6.addWidget(label6)
+    hbox6.addWidget(dlg.texbox6)
 
+    # row 7
+    hbox7.addWidget(label7)
+    hbox7.addWidget(dlg.texbox7)
 
-def init_main():
-    # create dialog  and show it
-    newDialog.setLayout(vbox)
-    newDialog.setWindowTitle(dialog_title_txt) 
-    newDialog.exec_() # show the dialog
+    # row 8
+    hbox8.addWidget(label11)
+    hbox8.addWidget(dlg.texbox11)
 
-plugin_id = "data_merge"
-plugin_menu_entry_name = "Data Merge..."
-plugin_where = "tools/scripts"
+    # checkbox row
+    hb_chk.addWidget(dlg.chkbox)
+    # chkbox.stateChanged.connect(checkbox_toggle)  # if you have this handler
+
+    # combobox settings
+    l = 0
+    for pm in pmenu:
+        if pm[0] == '---':
+            dlg.pbox.insertSeparator(l)
+            l += 1
+            continue
+        dlg.pbox.addItem(pm[0])
+        l += 1
+    # By writing [int] you force to receive a "number" instead of a string
+    dlg.pbox.currentIndexChanged[int].connect(combo_box_changed)
+
+    hb_cbx.addWidget(label9)
+    hb_cbx.addWidget(dlg.pbox)
+    hb_mes.addWidget(label10)
+
+    # second checkbox row
+    hb_chk2.addWidget(dlg.chkbox2)
+    hb_chk2.addWidget(dlg.texbox12)
+
+    # horizontal lines
+    hl = QFrame()
+    hl.setFrameShape(QC.Shape.HLine)
+    hl.setFrameShadow(QC.Shadow.Sunken)
+
+    hl2 = QFrame()
+    hl2.setFrameShape(QC.Shape.HLine)
+    hl2.setFrameShadow(QC.Shadow.Sunken)
+
+    hb_hline.addWidget(hl)
+    hb2_hline.addWidget(hl2)
+
+    # compose main layout
+    vbox.addLayout(hb_cbx)
+    vbox.addLayout(hbox1)
+    vbox.addLayout(hbox2)
+    vbox.addLayout(hb_chk)
+    vbox.addLayout(hb_mes)
+    vbox.addLayout(hb_hline)
+    vbox.addLayout(hbox3)
+    vbox.addLayout(hbox4)
+    vbox.addLayout(hbox5)
+    vbox.addLayout(hbox6)
+    vbox.addLayout(hb2_hline)
+    vbox.addLayout(hbox7)
+    vbox.addLayout(hbox8)
+    vbox.addLayout(hb_rad)
+    vbox.addLayout(hb_chk2)
+    vbox.addWidget(fileButton)
+
+    dlg.setLayout(vbox)
+    global c_dlg
+    c_dlg = dlg
+    qt_exec(dlg)
 
 class DataMergeGenerator(Extension):
 
@@ -713,4 +726,9 @@ class DataMergeGenerator(Extension):
     # called after setup(self)
     def createActions(self, window):
         self.action = window.createAction(plugin_id, plugin_menu_entry_name ,plugin_where)
-        self.action.triggered.connect(init_main)
+        self.action.triggered.connect(ui_composite)
+
+
+
+# And add the extension to Krita's list of extensions:
+Krita.instance().addExtension(DataMergeGenerator(Krita.instance()))
