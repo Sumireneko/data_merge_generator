@@ -1,8 +1,9 @@
-# Data Merge Generator v1.7 for Krita 
+# Data Merge Generator v1.8 for Krita 
   
 This plugin working simple version of Data Merge.  
-(v1.7) Support Krita v5.2.14 later (PyQt5 with Python 3.13)  
-(v1.6) Support Krita v5.2.2
+v1.8 — Krita v5.2.14,v5.3.0 and v6.0.0  later (PyQt5,6)  
+v1.7 — Krita v5.2.14 later (PyQt5 with Python 3.13)  
+v1.6 — Krita v5.2.2
 
 ### What is Data Merge?
 Arrange them in order according to the contents of the database (csv) based on the prepared template krita file. For example, it can be useful for printing number tags, equipment tags, and employee business cards.
@@ -22,8 +23,13 @@ See [Usage Manual](https://sumireneko.github.io/data_merge/data_merge_gen/Manual
 So,it can also specify the max number of units to be placed per each export image file.
 * Layer styles in template files are not supported.
 
+### Limitation in v1.8 
+Issue: Transform Masks (Scale/Rotation) for File Layers are not supported in this version.   
+While they work individually, duplicating many instances through this plugin can cause Krita to freeze during preview.   
+Please use images at their original size instead.   
 
-##How to install a python plugin to krita
+
+## How to install a python plugin to krita
 1. Run Krita application,
 2. From `Menu → Setting → Manage Resources`
 3. Click `Open Resource Folder` Button
@@ -67,12 +73,18 @@ For example "E:3 CardTitleString", M:6 person_name,The number mean index.
 If not match the tag and data, use default name "New" use to.
 
 ## Version history
-* 2025.10.18 v1.7 :
- - Some bugfix, because this script doesn't work in Krita v5.2.14(PyQT5 with Python 3.13)
- - Changed use an cloned layer node instead of copy paste action to new document.
- - In Editable mode,fix unusual coordinates that has minus position in some case.
- - Preliminary PyQt6 compatibility added Updated import logic to support PyQt6 for future Krita 6.x compatibility.
- - Note: PyQt6 functionality has not been tested yet. This change is preparatory and not guaranteed to be stable.
+* 2026.02.17 v1.8 :    
+   - Issue: Transform Masks (Scale/Rotation) for File Layers are not supported in this version.  While they work individually, duplicating many instances through this plugin can cause Krita to freeze during preview.Please use images at their original size instead.   
+   - Added a compatibility layer for PyQt5 and PyQt6 (qt_compat.py).  
+   - This layer handles various API changes, including the transition from exec_() to exec(),   
+   - updated enum types, event handling differences, and changes in the UI file loader.  
+
+* 2025.10.18 v1.7 :   
+    - Some bugfix, because this script doesn't work in Krita v5.2.14(PyQT5 with Python 3.13)
+    - Changed use an cloned layer node instead of copy paste action to new document.
+    - In Editable mode,fix unusual coordinates that has minus position in some case.
+    - Preliminary PyQt6 compatibility added Updated import logic to support PyQt6 for future Krita 6.x compatibility.  
+    - Note: PyQt6 functionality has not been tested yet. This change is preparatory and not guaranteed to be stable.  
 
 * 2024.02.17 v1.6 : Support two place algorithms that Moveable and Editable, Add GroupLayerRenamer
 * 202X.??.?? v1.5.4 : fist release, Place to multiple kra file by page
